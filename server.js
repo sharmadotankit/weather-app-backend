@@ -53,6 +53,7 @@ app.post('/signin',(req,res)=>{
 
 app.post('/register',(req,res)=>{
 	const {name,email,password}=req.body;
+	
 	const passwordHash = bcrypt.hashSync(password, saltRounds, function(err, hash) {
 		return hash;
 	});
@@ -69,7 +70,7 @@ app.post('/register',(req,res)=>{
 					.returning('*')
 					.insert({
 						name:name,
-						email:loginEmail[0].email,
+						email:loginEmail[0].email
 					})
 					.then(user=>{
 						res.json(user[0]);
