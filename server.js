@@ -3,6 +3,8 @@ import bcrypt from 'bcrypt';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import knex from 'knex';
+import jwt from 'jsonwebtoken';
+import {SECRET_KEY} from './secretKey.js';
 
 
 const db = knex({
@@ -41,7 +43,10 @@ app.post('/signin',(req,res)=>{
 				.from('users')
 				.where('email','=',email)
 				.then(user=>{
-					res.json(user[0]);
+					jwt.sign({user: user[0]},SECRET_KEY,(err,token)=>{
+						const validatedUser = Object.assign({},user[0],{token:token});
+						res.json(validatedUser);
+					})
 				})
 				.catch(err => res.status(400).json('Unable to get user'));
 			}
@@ -53,7 +58,7 @@ app.post('/signin',(req,res)=>{
 
 app.post('/register',(req,res)=>{
 	const {name,email,password}=req.body;
-	
+
 	const passwordHash = bcrypt.hashSync(password, saltRounds, function(err, hash) {
 		return hash;
 	});
@@ -73,7 +78,10 @@ app.post('/register',(req,res)=>{
 						email:loginEmail[0].email
 					})
 					.then(user=>{
-						res.json(user[0]);
+						jwt.sign({user: user[0]},SECRET_KEY,(err,token)=>{
+						const validatedUser = Object.assign({},user[0],{token:token});
+						res.json(validatedUser);
+						})
 					})
 					.then(trx.commit)
 					.catch(trx.rollback)
@@ -82,17 +90,39 @@ app.post('/register',(req,res)=>{
 });
 
 
-app.put('/counter',(req,res)=>{
-
+app.put('/counter',verifyToken,(req,res)=>{
 	let {id} = req.body;
-	db('users').where('id','=',id)
-	.increment('count',1)
-	.returning('count')
-	.then(count =>{
-		res.json(count[0].count);
-	}).catch(err => res.status(400).json('Unable to get the entries'))
-
+	jwt.verify(req.token,SECRET_KEY,(err,authData)=>{
+		if(err){
+			res.status(403).json('Something went wrong!');
+		}else{
+			db('users').where('id','=',id)
+			.increment('count',1)
+			.returning('count')
+			.then(count =>{
+				res.json(count[0].count);
+			}).catch(err => res.status(400).json('Unable to get the entries'))
+		}
+	})
 })
+
+
+// verifyToken
+
+function verifyToken (req,res,next){
+	const bearerHeader = req.headers['authorization'];
+	if(typeof bearerHeader !== 'undefined'){
+		const bearer = bearerHeader.split(' ');
+		const bearerToken = bearer[1];
+		req.token = bearerToken;
+		next();
+	}
+	else{
+		res.json('Forbidden');
+	}
+}
+
+
 
 
 
